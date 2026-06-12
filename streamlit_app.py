@@ -187,7 +187,7 @@ Reminder: This is not financial advice.
             with st.spinner("Analyzing your portfolio..."):
                 client   = Groq(api_key=os.environ.get("GROQ_API_KEY"))
                 response = client.chat.completions.create(
-                    model    = "llama3-8b-8192",   # fast + free on Groq
+                    model = "llama-3.3-70b-versatile",   # fast + free on Groq
                     messages = [{"role": "user", "content": prompt}],
                     max_tokens = 1024,
                 )
