@@ -12,29 +12,48 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------
-# CUSTOM CSS — clean styling on top of Streamlit default
+# FIX 1: Added color: #1a1a1a to .analysis-box so text
+# is always dark regardless of Streamlit's theme
+# FIX 2: Removed the HTML div approach for analysis —
+# using st.markdown() directly so Groq's markdown
+# (bold, headers, bullet points) renders properly
 # -------------------------------------------------------
 st.markdown("""
 <style>
     .main { padding-top: 1rem; }
     .metric-container { background: #f8f9fa; border-radius: 10px; padding: 1rem; }
     .stButton > button { width: 100%; border-radius: 8px; height: 42px; font-weight: 500; }
-    .analysis-box {
+
+    /* Section box for analysis — explicit dark text always */
+    .analysis-wrapper {
         background: #f0f7ff;
         border-left: 4px solid #2563eb;
-        border-radius: 0 8px 8px 0;
-        padding: 1rem 1.25rem;
+        border-radius: 0 10px 10px 0;
+        padding: 1.25rem 1.5rem;
         margin-top: 1rem;
-        font-size: 15px;
-        line-height: 1.7;
+        color: #1a1a1a !important;   /* FIX: force dark text */
+    }
+    .analysis-wrapper p,
+    .analysis-wrapper li,
+    .analysis-wrapper h1,
+    .analysis-wrapper h2,
+    .analysis-wrapper h3 {
+        color: #1a1a1a !important;   /* FIX: covers all child elements too */
+    }
+    .analysis-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: #2563eb !important;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 0.5rem;
     }
     div[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------
-# HARD-CODED STOCK PRICE DICTIONARY (from your original code)
-# KEY = stock symbol | VALUE = dict with price + company name
+# STOCK PRICE DICTIONARY
 # -------------------------------------------------------
 STOCK_PRICES = {
     "AAPL":  {"price": 190,  "name": "Apple"},
@@ -48,11 +67,10 @@ STOCK_PRICES = {
 }
 
 # -------------------------------------------------------
-# SESSION STATE — keeps portfolio alive across interactions
-# Without this, Streamlit resets everything on each click
+# SESSION STATE
 # -------------------------------------------------------
 if "portfolio" not in st.session_state:
-    st.session_state.portfolio = {}   # { "AAPL": 10, "TSLA": 5 }
+    st.session_state.portfolio = {}
 
 if "analysis" not in st.session_state:
     st.session_state.analysis = ""
@@ -65,7 +83,7 @@ st.caption("Add stocks, calculate your investment value, and get AI-powered anal
 st.divider()
 
 # -------------------------------------------------------
-# INPUT SECTION — stock selector + quantity
+# INPUT SECTION
 # -------------------------------------------------------
 st.subheader("Add a Stock")
 
@@ -83,7 +101,7 @@ with col2:
     quantity = st.number_input("Quantity", min_value=1, value=1, step=1)
 
 with col3:
-    st.write("")   # spacing to align button with inputs
+    st.write("")
     st.write("")
     add_clicked = st.button("➕ Add Stock", type="primary")
 
@@ -95,7 +113,7 @@ if add_clicked:
         # Add to portfolio — if stock exists, add to quantity
         prev = st.session_state.portfolio.get(symbol, 0)
         st.session_state.portfolio[symbol] = prev + quantity
-        st.session_state.analysis = ""   # clear old analysis on change
+        st.session_state.analysis = ""
         st.success(f"✅ Added {quantity} shares of {symbol}")
 
 st.divider()
@@ -106,14 +124,13 @@ st.divider()
 if st.session_state.portfolio:
     st.subheader("Your Portfolio")
 
-    # --- Build results list (same logic as your Chunk 3) ---
-    results = []
+    results          = []
     total_investment = 0
 
     for sym, qty in st.session_state.portfolio.items():
         price       = STOCK_PRICES[sym]["price"]
         name        = STOCK_PRICES[sym]["name"]
-        stock_value = qty * price          # core formula: qty × price
+        stock_value = qty * price
         total_investment += stock_value
         results.append({
             "Symbol":      sym,
@@ -129,14 +146,8 @@ if st.session_state.portfolio:
     m2.metric("📊 Stocks Held",       len(results))
     m3.metric("🔢 Total Shares",      sum(r["Quantity"] for r in results))
 
-    st.write("")   # spacing
-
-    # --- Portfolio table ---
-    st.dataframe(
-        results,
-        use_container_width=True,
-        hide_index=True
-    )
+    st.write("")
+    st.dataframe(results, use_container_width=True, hide_index=True)
 
     # --- Remove stock option ---
     with st.expander("🗑️ Remove a stock"):
@@ -153,7 +164,7 @@ if st.session_state.portfolio:
     st.divider()
 
     # -------------------------------------------------------
-    # AI ANALYSIS SECTION — sends portfolio to Groq API
+    # AI ANALYSIS
     # -------------------------------------------------------
     st.subheader("🤖 AI Analysis")
 
@@ -179,7 +190,8 @@ Please provide:
 4. Suggestions — what to consider adding or rebalancing
 5. Plain English Verdict — one paragraph a beginner can understand
 
-Keep the tone friendly, clear, and educational. Add emojis to each section heading.
+Use markdown formatting: bold headings with ##, bullet points with -.
+Add emojis to each section heading.
 Reminder: This is not financial advice.
 """
 
@@ -187,8 +199,8 @@ Reminder: This is not financial advice.
             with st.spinner("Analyzing your portfolio..."):
                 client   = Groq(api_key=os.environ.get("GROQ_API_KEY"))
                 response = client.chat.completions.create(
-                    model = "llama-3.3-70b-versatile",   # fast + free on Groq
-                    messages = [{"role": "user", "content": prompt}],
+                    model      = "llama-3.3-70b-versatile",
+                    messages   = [{"role": "user", "content": prompt}],
                     max_tokens = 1024,
                 )
                 st.session_state.analysis = response.choices[0].message.content
@@ -196,12 +208,15 @@ Reminder: This is not financial advice.
         except Exception as e:
             st.error(f"AI Error: {str(e)}")
 
-    # Show analysis if it exists
+    # -------------------------------------------------------
+    # FIX 2: Render analysis using st.markdown() inside a
+    # styled container so markdown (bold, bullets, headers)
+    # all render correctly instead of showing raw symbols
+    # -------------------------------------------------------
     if st.session_state.analysis:
-        st.markdown(
-            f'<div class="analysis-box">{st.session_state.analysis}</div>',
-            unsafe_allow_html=True
-        )
+        st.markdown('<div class="analysis-wrapper"><div class="analysis-label">AI Analysis</div></div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown(st.session_state.analysis)
 
 else:
     # Empty state
